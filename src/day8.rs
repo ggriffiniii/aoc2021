@@ -19,82 +19,129 @@ pub fn part2(input: &str) -> usize {
 
 fn decode_entry(input: &str) -> usize {
     let (signals, output) = input.split_once(" | ").unwrap();
-    let signals: Vec<_> = signals.split(' ').map(|s| s.as_bytes()).collect();
-    // find 2 digits, that's '1'. one of the two letters will appear in 8
-    // outputs that' s the top half, the other will appear in 9 that's the
-    // bottom half.
-    let one = signals.iter().find(|s| s.len() == 2).unwrap();
-    let (top_right, bottom_right) = match signals.iter().filter(|s| s.contains(&one[0])).count() {
-        8 => (one[0], one[1]),
-        9 => (one[1], one[0]),
-        _ => panic!("too many signals contain {:?}", one),
-    };
-    // find 3 digits, that's 7. it will contain two of the same letters as '1'
-    // above, the third letter is the top segment.
-    let three = signals.iter().find(|s| s.len() == 3).unwrap();
-    let top = *three.iter().find(|b| !one.contains(b)).unwrap();
-    // find 4 digits, that's 4. it will contain two of the same letters as '1'
-    // above, the other 2 letters should be found in 6 outputs that's the top
-    // left, and 7 outputs that's the middle.
-    let four = signals.iter().find(|s| s.len() == 4).unwrap();
-    let mut four = four.iter().filter(|b| !one.contains(b));
-    let first_four = *four.next().unwrap();
-    let second_four = *four.next().unwrap();
-    let (top_left, middle) = match signals.iter().filter(|s| s.contains(&first_four)).count() {
-        6 => (first_four, second_four),
-        7 => (second_four, first_four),
-        _ => panic!("too many signals contain {:?}", first_four),
-    };
-    // there are two remaining letters. they will be found in 4 outputs that's
-    // the bottom left and 7 outputs that's the bottom center
-    let mut rem = b"abcdefg"
-        .iter()
-        .filter(|b| ![top, top_left, top_right, middle, bottom_right].contains(b));
-    let first = *rem.next().unwrap();
-    let second = *rem.next().unwrap();
-    let (bottom_left, bottom) = match signals.iter().filter(|s| s.contains(&first)).count() {
-        4 => (first, second),
-        7 => (second, first),
-        _ => panic!("too many signals contain {:?}", first),
-    };
+    let mapping = Mapping::new(signals);
+    output.split(' ').fold(0, |accum, output| {
+        accum * 10 + mapping.decode_output(output) as usize
+    })
+}
 
-    let decode_output = |output: &str| -> usize {
-        let bitmask = output.as_bytes().iter().fold(0u8, |accum, &b| {
-            let bit = if b == top {
-                0
-            } else if b == top_left {
-                1
-            } else if b == top_right {
-                2
-            } else if b == middle {
-                3
-            } else if b == bottom_left {
-                4
-            } else if b == bottom_right {
-                5
-            } else if b == bottom {
-                6
-            } else {
-                panic!("invalid output char");
-            };
-            accum | 1 << bit
-        });
+const A_SEGMENT: u8 = 1 << 0;
+const B_SEGMENT: u8 = 1 << 1;
+const C_SEGMENT: u8 = 1 << 2;
+const D_SEGMENT: u8 = 1 << 3;
+const E_SEGMENT: u8 = 1 << 4;
+const F_SEGMENT: u8 = 1 << 5;
+const G_SEGMENT: u8 = 1 << 6;
 
-        match bitmask {
-            0b0111_0111 => 0,
-            0b0010_0100 => 1,
-            0b0101_1101 => 2,
-            0b0110_1101 => 3,
-            0b0010_1110 => 4,
-            0b0110_1011 => 5,
-            0b0111_1011 => 6,
-            0b0010_0101 => 7,
-            0b0111_1111 => 8,
-            0b0110_1111 => 9,
-            x => panic!("invalid bitmask {:0b}", x),
+// Convert the ascii range 'a'..='g' to 0..=6
+const fn char_to_idx(char: u8) -> usize {
+    (char - 97) as usize
+}
+
+#[derive(Debug)]
+struct Mapping {
+    signal_to_output: [u8; 7],
+}
+impl Mapping {
+    fn new(signals: &str) -> Self {
+        let mut signal_to_output = [0; 7];
+        let signals: Vec<_> = signals.split(' ').map(|s| s.as_bytes()).collect();
+        // find 2 digits, that's '1'. one of the two letters will appear in 8
+        // outputs that' s the top half (C_SEGMENT), the other will appear in 9
+        // that's the bottom half (F_SEGMENT).
+        let one = signals.iter().find(|s| s.len() == 2).unwrap();
+        match signals.iter().filter(|s| s.contains(&one[0])).count() {
+            8 => {
+                signal_to_output[char_to_idx(one[0])] = C_SEGMENT;
+                signal_to_output[char_to_idx(one[1])] = F_SEGMENT;
+            }
+            9 => {
+                signal_to_output[char_to_idx(one[0])] = F_SEGMENT;
+                signal_to_output[char_to_idx(one[1])] = C_SEGMENT;
+            }
+            _ => panic!("too many signals contain {:?}", one),
+        };
+        // find 3 digits, that's '7'. it will contain two of the same letters as
+        // '1' above, the third letter is the top (A_SEGMENT).
+        let seven = signals.iter().find(|s| s.len() == 3).unwrap();
+        let top = *seven.iter().find(|b| !one.contains(b)).unwrap();
+        signal_to_output[char_to_idx(top)] = A_SEGMENT;
+        // find 4 digits, that's '4'. it will contain two of the same letters as
+        // '1' above, of the other 2 letters one is contained in 6 outputs and
+        // is the top left (B_SEGMENT); the one contained in 7 outputs is the
+        // middle (D_SEGMENT).
+        let four = signals.iter().find(|s| s.len() == 4).unwrap();
+        let mut four = four.iter().filter(|b| !one.contains(b));
+        let first_four = *four.next().unwrap();
+        let second_four = *four.next().unwrap();
+        match signals.iter().filter(|s| s.contains(&first_four)).count() {
+            6 => {
+                signal_to_output[char_to_idx(first_four)] = B_SEGMENT;
+                signal_to_output[char_to_idx(second_four)] = D_SEGMENT;
+            }
+            7 => {
+                signal_to_output[char_to_idx(first_four)] = D_SEGMENT;
+                signal_to_output[char_to_idx(second_four)] = B_SEGMENT;
+            }
+            _ => panic!("too many signals contain {:?}", first_four),
+        };
+        // there are two remaining letters. the one contained in 4 outputs is
+        // the bottom left (E_SEGMENT); the one contained in 7 outputs is the
+        // bottom center (G_SEGMENT)
+        let mut rem = b"abcdefg"
+            .iter()
+            .filter(|b| ![top, one[0], one[1], first_four, second_four].contains(b));
+        let first = *rem.next().unwrap();
+        let second = *rem.next().unwrap();
+        match signals.iter().filter(|s| s.contains(&first)).count() {
+            4 => {
+                signal_to_output[char_to_idx(first)] = E_SEGMENT;
+                signal_to_output[char_to_idx(second)] = G_SEGMENT;
+            }
+            7 => {
+                signal_to_output[char_to_idx(first)] = G_SEGMENT;
+                signal_to_output[char_to_idx(second)] = E_SEGMENT;
+            }
+            _ => panic!("too many signals contain {:?}", first),
+        };
+        Mapping { signal_to_output }
+    }
+
+    // Return the number 0..=9 corresponding to a series of letters contained in
+    // the output string provided.
+    fn decode_output(&self, output: &str) -> u8 {
+        const fn lookup_table() -> [u8; 256] {
+            const ZERO_SEGMENTS: u8 =
+                A_SEGMENT | B_SEGMENT | C_SEGMENT | E_SEGMENT | F_SEGMENT | G_SEGMENT;
+            const ONE_SEGMENTS: u8 = C_SEGMENT | F_SEGMENT;
+            const TWO_SEGMENTS: u8 = A_SEGMENT | C_SEGMENT | D_SEGMENT | E_SEGMENT | G_SEGMENT;
+            const THREE_SEGMENTS: u8 = A_SEGMENT | C_SEGMENT | D_SEGMENT | F_SEGMENT | G_SEGMENT;
+            const FOUR_SEGMENTS: u8 = B_SEGMENT | C_SEGMENT | D_SEGMENT | F_SEGMENT;
+            const FIVE_SEGMENTS: u8 = A_SEGMENT | B_SEGMENT | D_SEGMENT | F_SEGMENT | G_SEGMENT;
+            const SIX_SEGMENTS: u8 =
+                A_SEGMENT | B_SEGMENT | D_SEGMENT | E_SEGMENT | F_SEGMENT | G_SEGMENT;
+            const SEVEN_SEGMENTS: u8 = A_SEGMENT | C_SEGMENT | F_SEGMENT;
+            const EIGHT_SEGMENTS: u8 =
+                A_SEGMENT | B_SEGMENT | C_SEGMENT | D_SEGMENT | E_SEGMENT | F_SEGMENT | G_SEGMENT;
+            const NINE_SEGMENTS: u8 =
+                A_SEGMENT | B_SEGMENT | C_SEGMENT | D_SEGMENT | F_SEGMENT | G_SEGMENT;
+            let mut t = [0; 256];
+            t[ZERO_SEGMENTS as usize] = 0;
+            t[ONE_SEGMENTS as usize] = 1;
+            t[TWO_SEGMENTS as usize] = 2;
+            t[THREE_SEGMENTS as usize] = 3;
+            t[FOUR_SEGMENTS as usize] = 4;
+            t[FIVE_SEGMENTS as usize] = 5;
+            t[SIX_SEGMENTS as usize] = 6;
+            t[SEVEN_SEGMENTS as usize] = 7;
+            t[EIGHT_SEGMENTS as usize] = 8;
+            t[NINE_SEGMENTS as usize] = 9;
+            t
         }
-    };
-    output
-        .split(' ')
-        .fold(0, |accum, output| accum * 10 + decode_output(output))
+        static LOOKUP_TABLE: [u8; 256] = lookup_table();
+        let bitmask = output.as_bytes().iter().fold(0u8, |accum, &b| {
+            accum | self.signal_to_output[char_to_idx(b)]
+        });
+        LOOKUP_TABLE[bitmask as usize]
+    }
 }
