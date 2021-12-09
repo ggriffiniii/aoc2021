@@ -13,7 +13,7 @@ pub fn part1(input: &str) -> usize {
 #[aoc(day7, part2)]
 pub fn part2(input: &str) -> usize {
     let pos: Vec<usize> = input.split(',').map(|s| s.parse().unwrap()).collect();
-    let mean: usize = pos.iter().sum::<usize>() / pos.iter().count();
+    let mean: usize = pos.iter().sum::<usize>() / pos.len();
     pos.iter()
         .map(|&s| (s as isize - mean as isize).abs() as usize)
         .map(p2_fuel_for_distance)

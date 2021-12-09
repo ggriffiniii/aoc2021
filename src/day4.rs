@@ -7,6 +7,8 @@ struct Marked(u32);
 const fn bitmask_for_row(row: u8) -> u32 {
     0b11111 << (row * 5)
 }
+
+#[allow(clippy::unusual_byte_groupings)]
 const fn bitmask_for_col(col: u8) -> u32 {
     0b00001_00001_00001_00001_00001 << col
 }
@@ -79,9 +81,7 @@ pub fn part1(input: &str) -> u64 {
         .split(',')
         .map(|s| -> u8 { s.parse().unwrap() });
 
-    let mut boards: Vec<_> = records
-        .map(|board_input| Board::from_input(board_input))
-        .collect();
+    let mut boards: Vec<_> = records.map(Board::from_input).collect();
 
     for number in drawn_numbers {
         for board in boards.iter_mut() {
@@ -117,9 +117,7 @@ pub fn part2(input: &str) -> u64 {
         .split(',')
         .map(|s| -> u8 { s.parse().unwrap() });
 
-    let mut boards: Vec<_> = records
-        .map(|board_input| Board::from_input(board_input))
-        .collect();
+    let mut boards: Vec<_> = records.map(Board::from_input).collect();
 
     for number in drawn_numbers {
         let num_boards = boards.len();
