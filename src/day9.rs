@@ -1,63 +1,58 @@
-use std::collections::HashSet;
+use std::{collections::HashSet, ops::Index};
 
 use aoc_runner_derive::aoc;
 
 #[aoc(day9, part1)]
 pub fn part1(input: &str) -> usize {
     let grid = Grid::new(input);
-    let mut risk_level = 0;
-    for row in 0..grid.num_rows() {
-        for col in 0..grid.num_cols() {
-            let level = grid.get(col, row);
+    grid.points_levels()
+        .filter_map(|((col, row), level)| {
             let min_adjacent = grid
                 .adjacent_points(col, row)
-                .map(|(col, row)| grid.get(col, row))
+                .map(|(col, row)| grid[(col, row)])
                 .min()
                 .unwrap();
             if level < min_adjacent {
-                risk_level += level as usize + 1;
+                Some(level as usize + 1)
+            } else {
+                None
             }
-        }
-    }
-    risk_level
+        })
+        .sum()
 }
 
 #[aoc(day9, part2)]
 pub fn part2(input: &str) -> usize {
     let grid = Grid::new(input);
-    let mut basin_sizes = Vec::new();
-    for row in 0..grid.num_rows() {
-        for col in 0..grid.num_cols() {
-            let level = grid.get(col, row);
+    let mut basin_sizes: Vec<_> = grid
+        .points_levels()
+        .filter_map(|((col, row), level)| {
             let min_adjacent = grid
                 .adjacent_points(col, row)
-                .map(|(col, row)| grid.get(col, row))
+                .map(|(col, row)| grid[(col, row)])
                 .min()
                 .unwrap();
             if level < min_adjacent {
-                basin_sizes.push(find_basin_size(&grid, col, row));
+                Some(find_basin_size(&grid, col, row))
+            } else {
+                None
             }
-        }
-    }
-    basin_sizes.sort_unstable();
-    basin_sizes.iter().rev().take(3).product()
+        })
+        .collect();
+    basin_sizes.sort_unstable_by_key(|k| std::cmp::Reverse(*k));
+    basin_sizes.iter().take(3).product()
 }
 
-fn find_basin_size(grid: &Grid, col: usize, row: usize) -> usize {
-    fn _find_basin_size(
-        grid: &Grid,
-        col: usize,
-        row: usize,
-        seen: &mut HashSet<(usize, usize)>,
-    ) -> usize {
+fn find_basin_size(grid: &Grid, col: Col, row: Row) -> usize {
+    fn _find_basin_size(grid: &Grid, col: Col, row: Row, seen: &mut HashSet<(Col, Row)>) -> usize {
         if seen.contains(&(col, row)) {
             return 0;
         }
         seen.insert((col, row));
-        let level = grid.get(col, row);
+        let level = grid[(col, row)];
         let mut basin_size = 1;
         for (adj_col, adj_row) in grid.adjacent_points(col, row) {
-            let adj_level = grid.get(adj_col, adj_row);
+            let adj_level = grid[(adj_col, adj_row)];
             if adj_level != 9 && adj_level > level {
                 basin_size += _find_basin_size(grid, adj_col, adj_row, seen);
             }
@@ -66,6 +61,11 @@ fn find_basin_size(grid: &Grid, col: usize, row: usize) -> usize {
     }
     _find_basin_size(grid, col, row, &mut HashSet::new())
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct Row(usize);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+struct Col(usize);
 
 #[derive(Debug)]
 struct Grid {
@@ -92,11 +92,7 @@ impl Grid {
         self.row_len
     }
 
-    fn get(&self, col: usize, row: usize) -> u8 {
-        self.data[row * self.row_len + col]
-    }
-
-    fn adjacent_points(&self, col: usize, row: usize) -> AdjacentIter {
+    fn adjacent_points(&self, col: Col, row: Row) -> AdjacentIter {
         AdjacentIter {
             col,
             row,
@@ -105,48 +101,64 @@ impl Grid {
             state: AdjacentIterState::Above,
         }
     }
+
+    fn points_levels(&self) -> impl Iterator<Item = ((Col, Row), u8)> + '_ {
+        self.data.iter().copied().enumerate().map(|(idx, v)| {
+            let col = Col(idx % self.num_cols());
+            let row = Row(idx / self.num_cols());
+            ((col, row), v)
+        })
+    }
+}
+
+impl Index<(Col, Row)> for Grid {
+    type Output = u8;
+
+    fn index(&self, (col, row): (Col, Row)) -> &Self::Output {
+        &self.data[row.0 * self.row_len + col.0]
+    }
 }
 
 #[derive(Debug)]
 struct AdjacentIter {
-    col: usize,
-    row: usize,
+    col: Col,
+    row: Row,
     num_rows: usize,
     num_cols: usize,
     state: AdjacentIterState,
 }
 impl Iterator for AdjacentIter {
-    type Item = (usize, usize);
-    fn next(&mut self) -> Option<(usize, usize)> {
+    type Item = (Col, Row);
+    fn next(&mut self) -> Option<Self::Item> {
         match self.state {
             AdjacentIterState::Above => {
                 self.state = AdjacentIterState::Left;
-                if self.row > 0 {
-                    Some((self.col, self.row - 1))
+                if self.row.0 > 0 {
+                    Some((self.col, Row(self.row.0 - 1)))
                 } else {
                     self.next()
                 }
             }
             AdjacentIterState::Left => {
                 self.state = AdjacentIterState::Below;
-                if self.col > 0 {
-                    Some((self.col - 1, self.row))
+                if self.col.0 > 0 {
+                    Some((Col(self.col.0 - 1), self.row))
                 } else {
                     self.next()
                 }
             }
             AdjacentIterState::Below => {
                 self.state = AdjacentIterState::Right;
-                if self.row + 1 < self.num_rows {
-                    Some((self.col, self.row + 1))
+                if self.row.0 + 1 < self.num_rows {
+                    Some((self.col, Row(self.row.0 + 1)))
                 } else {
                     self.next()
                 }
             }
             AdjacentIterState::Right => {
                 self.state = AdjacentIterState::Done;
-                if self.col + 1 < self.num_cols {
-                    Some((self.col + 1, self.row))
+                if self.col.0 + 1 < self.num_cols {
+                    Some((Col(self.col.0 + 1), self.row))
                 } else {
                     self.next()
                 }
