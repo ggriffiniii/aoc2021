@@ -39,7 +39,7 @@ pub fn part2(input: &str) -> usize {
             }
         }
     }
-    basin_sizes.sort();
+    basin_sizes.sort_unstable();
     basin_sizes.iter().rev().take(3).product()
 }
 

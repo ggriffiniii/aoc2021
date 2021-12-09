@@ -3,7 +3,7 @@ use aoc_runner_derive::aoc;
 #[aoc(day7, part1)]
 pub fn part1(input: &str) -> usize {
     let mut pos: Vec<usize> = input.split(',').map(|s| s.parse().unwrap()).collect();
-    pos.sort();
+    pos.sort_unstable();
     let median = pos[pos.len() / 2];
     pos.iter()
         .map(|&s| (s as isize - median as isize).abs() as usize)
