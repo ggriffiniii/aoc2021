@@ -84,28 +84,20 @@ impl Grid {
         Grid { data, row_len }
     }
 
-    fn num_rows(&self) -> usize {
-        self.data.len() / self.row_len
-    }
-
-    fn num_cols(&self) -> usize {
-        self.row_len
-    }
-
     fn adjacent_points(&self, col: Col, row: Row) -> AdjacentIter {
         AdjacentIter {
             col,
             row,
-            num_rows: self.num_rows(),
-            num_cols: self.num_cols(),
+            num_rows: self.data.len() / self.row_len,
+            num_cols: self.row_len,
             state: AdjacentIterState::Above,
         }
     }
 
     fn points_levels(&self) -> impl Iterator<Item = ((Col, Row), u8)> + '_ {
         self.data.iter().copied().enumerate().map(|(idx, v)| {
-            let col = Col(idx % self.num_cols());
-            let row = Row(idx / self.num_cols());
+            let col = Col(idx % self.row_len);
+            let row = Row(idx / self.row_len);
             ((col, row), v)
         })
     }
