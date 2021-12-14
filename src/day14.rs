@@ -43,20 +43,34 @@ pub fn part2(input: &str) -> usize {
         .split('\n')
         .map(|line| line.split_once(" -> ").unwrap())
         .collect();
-    
-    let mut pairs = (0..start.len() - 1).fold(HashMap::new(), |pairs, i| {
-        *pairs.entry(&start[i..i+2]).or_insert(0) += 1;
+
+    let mut pairs = (0..start.len() - 1).fold(HashMap::new(), |mut pairs, i| {
+        *pairs.entry(start[i..i + 2].to_owned()).or_insert(0) += 1;
         pairs
     });
+    let mut letters = start
+        .as_bytes()
+        .iter()
+        .copied()
+        .fold(HashMap::new(), |mut letters, c| {
+            *letters.entry(c).or_insert(0) += 1;
+            letters
+        });
     for _ in 0..40 {
-        pairs = step2(&pairs);
+        pairs = step2(&rules, pairs, &mut letters);
     }
-    pairs.len()
+    let max = letters.values().max().unwrap();
+    let min = letters.values().min().unwrap();
+    max - min
 }
 
-fn step2(rules: &HashMap<&str, &str>, before: HashMap<String, usize>) -> HashMap<String, usize> {
+fn step2(
+    rules: &HashMap<&str, &str>,
+    before_pairs: HashMap<String, usize>,
+    letters: &mut HashMap<u8, usize>,
+) -> HashMap<String, usize> {
     let mut after = HashMap::new();
-    for (pair, occurrences) in before.into_iter() {
+    for (pair, occurrences) in before_pairs.into_iter() {
         let new_mid = rules[pair.as_str()];
         let mut new_first = pair[0..1].to_owned();
         new_first.push_str(new_mid);
@@ -64,6 +78,7 @@ fn step2(rules: &HashMap<&str, &str>, before: HashMap<String, usize>) -> HashMap
         new_second.push_str(&pair[1..2]);
         *after.entry(new_first).or_insert(0) += occurrences;
         *after.entry(new_second).or_insert(0) += occurrences;
+        *letters.entry(new_mid.as_bytes()[0]).or_insert(0) += occurrences;
     }
     after
 }
