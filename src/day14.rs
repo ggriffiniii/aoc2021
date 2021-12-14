@@ -4,81 +4,57 @@ use aoc_runner_derive::aoc;
 
 #[aoc(day14, part1)]
 pub fn part1(input: &str) -> usize {
-    let (start, rules) = input.split_once("\n\n").unwrap();
-    let rules: HashMap<_, _> = rules
-        .split('\n')
-        .map(|line| line.split_once(" -> ").unwrap())
-        .collect();
-    let mut polymer = start.to_string();
-    for _ in 0..10 {
-        polymer = step(&rules, &polymer);
-    }
-    let occurrences =
-        polymer
-            .into_bytes()
-            .into_iter()
-            .fold(HashMap::new(), |mut occurrences, c| {
-                *occurrences.entry(c).or_insert(0) += 1;
-                occurrences
-            });
-    let max = occurrences.values().max().unwrap();
-    let min = occurrences.values().min().unwrap();
-    max - min
-}
-
-fn step(rules: &HashMap<&str, &str>, start: &str) -> String {
-    let mut polymer = String::new();
-    for i in 0..start.len() - 1 {
-        polymer.push_str(&start[i..=i]);
-        polymer.push_str(rules[&start[i..i + 2]]);
-    }
-    polymer.push_str(&start[start.len() - 1..start.len()]);
-    polymer
+    solve(input, 10)
 }
 
 #[aoc(day14, part2)]
 pub fn part2(input: &str) -> usize {
+    solve(input, 40)
+}
+
+fn solve(input: &str, num_steps: usize) -> usize {
     let (start, rules) = input.split_once("\n\n").unwrap();
     let rules: HashMap<_, _> = rules
         .split('\n')
-        .map(|line| line.split_once(" -> ").unwrap())
+        .map(|line| {
+            let (pair, mid) = line.split_once(" -> ").unwrap();
+            let pair = pair.as_bytes();
+            ([pair[0], pair[1]], mid.as_bytes()[0])
+        })
         .collect();
 
-    let mut pairs = (0..start.len() - 1).fold(HashMap::new(), |mut pairs, i| {
-        *pairs.entry(start[i..i + 2].to_owned()).or_insert(0) += 1;
-        pairs
-    });
-    let mut letters = start
+    let last_letter = start.as_bytes()[start.len() - 1];
+    let pairs = start
         .as_bytes()
-        .iter()
-        .copied()
-        .fold(HashMap::new(), |mut letters, c| {
-            *letters.entry(c).or_insert(0) += 1;
+        .windows(2)
+        .fold(HashMap::new(), |mut pairs, pair| {
+            *pairs.entry([pair[0], pair[1]]).or_insert(0) += 1;
+            pairs
+        });
+
+    let pairs = (0..num_steps).fold(pairs, |pairs, _step_num| step(&rules, pairs));
+    let mut letters = pairs
+        .into_iter()
+        .fold(HashMap::new(), |mut letters, (pair, occurrences)| {
+            *letters.entry(pair[0]).or_insert(0) += occurrences;
             letters
         });
-    for _ in 0..40 {
-        pairs = step2(&rules, pairs, &mut letters);
-    }
-    let max = letters.values().max().unwrap();
-    let min = letters.values().min().unwrap();
+    *letters.entry(last_letter).or_insert(0) += 1;
+    let (min, max) = letters
+        .values()
+        .fold((usize::MAX, 0), |(min, max), &v| (min.min(v), max.max(v)));
     max - min
 }
 
-fn step2(
-    rules: &HashMap<&str, &str>,
-    before_pairs: HashMap<String, usize>,
-    letters: &mut HashMap<u8, usize>,
-) -> HashMap<String, usize> {
+fn step(
+    rules: &HashMap<[u8; 2], u8>,
+    before_pairs: HashMap<[u8; 2], usize>,
+) -> HashMap<[u8; 2], usize> {
     let mut after = HashMap::new();
-    for (pair, occurrences) in before_pairs.into_iter() {
-        let new_mid = rules[pair.as_str()];
-        let mut new_first = pair[0..1].to_owned();
-        new_first.push_str(new_mid);
-        let mut new_second = new_mid.to_owned();
-        new_second.push_str(&pair[1..2]);
-        *after.entry(new_first).or_insert(0) += occurrences;
-        *after.entry(new_second).or_insert(0) += occurrences;
-        *letters.entry(new_mid.as_bytes()[0]).or_insert(0) += occurrences;
+    for (pair, occurrences) in before_pairs {
+        let mid = rules[&pair];
+        *after.entry([pair[0], mid]).or_insert(0) += occurrences;
+        *after.entry([mid, pair[1]]).or_insert(0) += occurrences;
     }
     after
 }
