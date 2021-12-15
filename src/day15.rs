@@ -1,5 +1,6 @@
 use std::{
-    collections::{HashMap, HashSet},
+    cmp::Ordering,
+    collections::{BinaryHeap, HashMap},
     ops::Index,
 };
 
@@ -10,28 +11,86 @@ pub fn part1(input: &str) -> usize {
     find_lowest_cost(&Grid::new(input))
 }
 
+#[aoc(day15, part2)]
+pub fn part2(input: &str) -> usize {
+    let grid_data: Vec<u8> = input
+        .split('\n')
+        .flat_map(|line| {
+            (0..5).flat_map(|i| {
+                line.as_bytes()
+                    .iter()
+                    .copied()
+                    .map(|b| b - b'0')
+                    .map(move |b| ((b - 1) + i) % 9 + 1)
+            })
+        })
+        .collect();
+    let grid_data: Vec<u8> = (0..5)
+        .flat_map(|i| {
+            grid_data
+                .iter()
+                .copied()
+                .map(move |b| ((b - 1) + i) % 9 + 1)
+        })
+        .collect();
+    let grid = Grid {
+        data: grid_data,
+        row_len: input.find('\n').unwrap() * 5,
+    };
+    find_lowest_cost(&grid)
+}
+
 fn find_lowest_cost(grid: &Grid) -> usize {
+    let mut heap = BinaryHeap::new();
     let start = (Col(0), Row(0));
     let finish = (Col(grid.num_cols() - 1), Row(grid.num_rows() - 1));
     let mut costs = HashMap::new();
-    let mut visited = HashSet::new();
-    for (col, row) in grid.adjacent_points(start.0, start.1) {
-        costs.insert((col, row), grid[(col, row)] as usize);
-    }
-    visited.insert(start);
-    while !visited.contains(&finish) {
-        let (&(curr_col, curr_row), &curr_cost) = costs
-            .iter()
-            .filter(|(pos, _cost)| !visited.contains(pos))
-            .min_by_key(|&(&_pos, &cost)| cost)
-            .unwrap();
-        for (col, row) in grid.adjacent_points(curr_col, curr_row) {
-            let entry = costs.entry((col, row)).or_insert(usize::MAX);
-            *entry = (*entry).min(curr_cost + grid[(col, row)] as usize);
+    costs.insert(start, 0);
+    heap.push(State {
+        cost: 0,
+        pos: start,
+    });
+    while let Some(State { cost, pos }) = heap.pop() {
+        if pos == finish {
+            return cost;
         }
-        visited.insert((curr_col, curr_row));
+        if cost > costs.get(&pos).copied().unwrap_or(usize::MAX) {
+            continue;
+        }
+        for pos in grid.adjacent_points(pos.0, pos.1) {
+            let next = State {
+                cost: cost + grid[pos] as usize,
+                pos,
+            };
+            if next.cost < costs.get(&pos).copied().unwrap_or(usize::MAX) {
+                heap.push(next);
+                costs.insert(next.pos, next.cost);
+            }
+        }
     }
-    costs[&finish]
+    panic!("no path exists")
+}
+
+#[derive(Copy, Clone, Eq, PartialEq)]
+struct State {
+    pos: (Col, Row),
+    cost: usize,
+}
+impl Ord for State {
+    fn cmp(&self, other: &Self) -> Ordering {
+        // Notice that the we flip the ordering on costs.
+        // In case of a tie we compare positions - this step is necessary
+        // to make implementations of `PartialEq` and `Ord` consistent.
+        other
+            .cost
+            .cmp(&self.cost)
+            .then_with(|| self.pos.cmp(&other.pos))
+    }
+}
+impl PartialOrd for State {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
