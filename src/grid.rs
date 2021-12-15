@@ -32,6 +32,10 @@ impl<T> Grid<T> {
         self.width
     }
 
+    pub fn num_cells(&self) -> usize {
+        self.data.len()
+    }
+
     pub fn neighbors_4(&self, x: X, y: Y) -> AdjacentIter {
         AdjacentIter {
             x,

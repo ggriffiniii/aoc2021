@@ -1,8 +1,5 @@
 use crate::grid::{Grid, X, Y};
-use std::{
-    cmp::Ordering,
-    collections::{BinaryHeap, HashMap},
-};
+use std::{cmp::Ordering, collections::BinaryHeap};
 
 use aoc_runner_derive::aoc;
 
@@ -46,8 +43,8 @@ pub fn part2(input: &str) -> usize {
 
 fn find_lowest_cost(grid: &Grid<u8>, origin: (X, Y), finish: (X, Y)) -> usize {
     let mut heap = BinaryHeap::new();
-    let mut costs = HashMap::new();
-    costs.insert(origin, 0);
+    let mut costs = Grid::new(vec![usize::MAX; grid.num_cells()], grid.width());
+    costs[origin] = 0;
     heap.push(NodeState {
         cost: 0,
         pos: origin,
@@ -56,8 +53,7 @@ fn find_lowest_cost(grid: &Grid<u8>, origin: (X, Y), finish: (X, Y)) -> usize {
         if pos == finish {
             return cost;
         }
-        let tentative_cost = costs.entry(pos).or_insert(usize::MAX);
-        if cost > *tentative_cost {
+        if cost > costs[pos] {
             continue;
         }
         for pos in grid.neighbors_4(pos.0, pos.1) {
@@ -65,10 +61,9 @@ fn find_lowest_cost(grid: &Grid<u8>, origin: (X, Y), finish: (X, Y)) -> usize {
                 cost: cost + grid[pos] as usize,
                 pos,
             };
-            let tentative_cost = costs.entry(pos).or_insert(usize::MAX);
-            if next.cost < *tentative_cost {
+            if next.cost < costs[pos] {
                 heap.push(next);
-                *tentative_cost = next.cost;
+                costs[pos] = next.cost;
             }
         }
     }
