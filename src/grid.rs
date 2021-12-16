@@ -79,12 +79,14 @@ impl<T> Index<(X, Y)> for Grid<T> {
     type Output = T;
 
     fn index(&self, (x, y): (X, Y)) -> &Self::Output {
+        assert!(y.0 < self.width);
         &self.data[y.0 * self.width + x.0]
     }
 }
 
 impl<T> IndexMut<(X, Y)> for Grid<T> {
     fn index_mut(&mut self, (x, y): (X, Y)) -> &mut Self::Output {
+        assert!(y.0 < self.width);
         &mut self.data[y.0 * self.width + x.0]
     }
 }
