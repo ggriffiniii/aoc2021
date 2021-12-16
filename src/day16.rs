@@ -10,13 +10,7 @@ fn sum_version_numbers(packet: &Packet) -> usize {
     packet.version as usize
         + match &packet.lit_or_op {
             LitOrOp::Literal(_) => 0,
-            LitOrOp::Sum(packets)
-            | LitOrOp::Product(packets)
-            | LitOrOp::Min(packets)
-            | LitOrOp::Max(packets)
-            | LitOrOp::Gt(packets)
-            | LitOrOp::Lt(packets)
-            | LitOrOp::Eq(packets) => packets.iter().map(sum_version_numbers).sum(),
+            LitOrOp::Op { packets, .. } => packets.iter().map(sum_version_numbers).sum(),
         }
 }
 
@@ -29,16 +23,39 @@ pub fn part2(input: &str) -> usize {
 fn eval_packet(packet: &Packet) -> usize {
     match &packet.lit_or_op {
         LitOrOp::Literal(lit) => *lit as usize,
-        LitOrOp::Sum(packets) => packets.iter().map(eval_packet).sum(),
-        LitOrOp::Product(packets) => packets.iter().map(eval_packet).product(),
-        LitOrOp::Min(packets) => packets.iter().map(eval_packet).min().unwrap(),
-        LitOrOp::Max(packets) => packets.iter().map(eval_packet).max().unwrap(),
-        LitOrOp::Gt(packets) => (eval_packet(&packets[0]) > eval_packet(&packets[1])) as usize,
-        LitOrOp::Lt(packets) => (eval_packet(&packets[0]) < eval_packet(&packets[1])) as usize,
-        LitOrOp::Eq(packets) => (eval_packet(&packets[0]) == eval_packet(&packets[1])) as usize,
+        LitOrOp::Op {
+            op: Op::Sum,
+            packets,
+        } => packets.iter().map(eval_packet).sum(),
+        LitOrOp::Op {
+            op: Op::Product,
+            packets,
+        } => packets.iter().map(eval_packet).product(),
+        LitOrOp::Op {
+            op: Op::Min,
+            packets,
+        } => packets.iter().map(eval_packet).min().unwrap(),
+        LitOrOp::Op {
+            op: Op::Max,
+            packets,
+        } => packets.iter().map(eval_packet).max().unwrap(),
+        LitOrOp::Op {
+            op: Op::Gt,
+            packets,
+        } => (eval_packet(&packets[0]) > eval_packet(&packets[1])) as usize,
+        LitOrOp::Op {
+            op: Op::Lt,
+            packets,
+        } => (eval_packet(&packets[0]) < eval_packet(&packets[1])) as usize,
+        LitOrOp::Op {
+            op: Op::Eq,
+            packets,
+        } => (eval_packet(&packets[0]) == eval_packet(&packets[1])) as usize,
     }
 }
 
+/// A Message takes a hex string and provides methods for consuming bits from
+/// left to right.
 struct Message<'a> {
     hex: &'a str,
     bit_cursor: usize,
@@ -49,18 +66,22 @@ impl<'a> Message<'a> {
         Message { hex, bit_cursor: 0 }
     }
 
+    /// Consume the next `nbits` bits from the message. `nbits` must be <= 61.
     fn consume(&mut self, nbits: usize) -> u64 {
-        assert!(nbits <= 64);
+        assert!(nbits <= 61);
         let first_bit = self.bit_cursor;
         self.bit_cursor += nbits;
         let hex_char_start = first_bit / 4;
-        let hex_char_end = self.bit_cursor / 4 + 1;
+        let hex_char_end = (self.bit_cursor + 3) / 4;
         let value = u64::from_str_radix(&self.hex[hex_char_start..hex_char_end], 16).unwrap();
         let right_shift = hex_char_end * 4 - self.bit_cursor;
         let mask = (1 << nbits) - 1;
         (value >> right_shift) & mask
     }
 
+    /// Return the current cursor position. The difference between two cursor
+    /// positions will indicate how many bits have been consumed during that
+    /// duration.
     fn cursor(&self) -> usize {
         self.bit_cursor
     }
@@ -76,14 +97,35 @@ fn parse_packet(msg: &mut Message) -> Packet {
     let version = msg.consume(3) as u8;
     let typ = msg.consume(3) as u8;
     let lit_or_op = match typ {
-        0 => LitOrOp::Sum(parse_op_packets(msg)),
-        1 => LitOrOp::Product(parse_op_packets(msg)),
-        2 => LitOrOp::Min(parse_op_packets(msg)),
-        3 => LitOrOp::Max(parse_op_packets(msg)),
+        0 => LitOrOp::Op {
+            op: Op::Sum,
+            packets: parse_op_packets(msg),
+        },
+        1 => LitOrOp::Op {
+            op: Op::Product,
+            packets: parse_op_packets(msg),
+        },
+        2 => LitOrOp::Op {
+            op: Op::Min,
+            packets: parse_op_packets(msg),
+        },
+        3 => LitOrOp::Op {
+            op: Op::Max,
+            packets: parse_op_packets(msg),
+        },
         4 => LitOrOp::Literal(parse_literal(msg)),
-        5 => LitOrOp::Gt(parse_op_packets(msg)),
-        6 => LitOrOp::Lt(parse_op_packets(msg)),
-        7 => LitOrOp::Eq(parse_op_packets(msg)),
+        5 => LitOrOp::Op {
+            op: Op::Gt,
+            packets: parse_op_packets(msg),
+        },
+        6 => LitOrOp::Op {
+            op: Op::Lt,
+            packets: parse_op_packets(msg),
+        },
+        7 => LitOrOp::Op {
+            op: Op::Eq,
+            packets: parse_op_packets(msg),
+        },
         _ => panic!("unknown packet type"),
     };
     Packet { version, lit_or_op }
@@ -91,14 +133,14 @@ fn parse_packet(msg: &mut Message) -> Packet {
 
 fn parse_literal(msg: &mut Message) -> u64 {
     let mut lit = 0;
-    loop {
+    for _ in 0..16 {
         let last = msg.consume(1) == 0;
-        lit <<= 4;
-        lit |= msg.consume(4);
+        lit = (lit << 4) | msg.consume(4);
         if last {
             return lit;
         }
     }
+    panic!("literal greater than 64 bits")
 }
 
 fn parse_op_packets(msg: &mut Message) -> Vec<Packet> {
@@ -120,11 +162,16 @@ fn parse_op_packets(msg: &mut Message) -> Vec<Packet> {
 #[derive(Debug)]
 enum LitOrOp {
     Literal(u64),
-    Sum(Vec<Packet>),
-    Product(Vec<Packet>),
-    Min(Vec<Packet>),
-    Max(Vec<Packet>),
-    Gt(Vec<Packet>),
-    Lt(Vec<Packet>),
-    Eq(Vec<Packet>),
+    Op { op: Op, packets: Vec<Packet> },
+}
+
+#[derive(Debug)]
+enum Op {
+    Sum,
+    Product,
+    Min,
+    Max,
+    Gt,
+    Lt,
+    Eq,
 }
