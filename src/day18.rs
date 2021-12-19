@@ -51,12 +51,10 @@ fn parse_pair_or_num(input: &str) -> PairOrNum {
 }
 
 fn reduce(pn: &mut PairOrNum) {
-    loop {
-        while explode(pn) {}
-        if !split(pn) {
-            return;
-        }
+    fn _explode_or_split(pn: &mut PairOrNum) -> bool {
+        explode(pn) || split(pn)
     }
+    while _explode_or_split(pn) {}
 }
 
 fn magnitude(pn: &PairOrNum) -> usize {
@@ -68,20 +66,21 @@ fn magnitude(pn: &PairOrNum) -> usize {
 
 /// Returns true if any numbers exploded
 fn explode(pn: &mut PairOrNum) -> bool {
-    fn _add_left(pn: &mut PairOrNum, v: usize) {
+    fn _add_first_num_to_right(pn: &mut PairOrNum, v: usize) {
         match pn {
             PairOrNum::Num(x) => {
                 *x += v;
             }
-            PairOrNum::Pair(left, _) => _add_left(&mut *left, v),
+            PairOrNum::Pair(left, _) => _add_first_num_to_right(&mut *left, v),
         }
     }
-    fn _add_right(pn: &mut PairOrNum, v: usize) {
+    // Add `v` to the number closest to the left. i.e. the rightmost value to the left of pn.
+    fn _add_first_num_to_left(pn: &mut PairOrNum, v: usize) {
         match pn {
             PairOrNum::Num(x) => {
                 *x += v;
             }
-            PairOrNum::Pair(_, right) => _add_right(&mut *right, v),
+            PairOrNum::Pair(_, right) => _add_first_num_to_left(&mut *right, v),
         }
     }
     fn _explode(pn: &mut PairOrNum, depth: usize) -> (bool, Option<usize>, Option<usize>) {
@@ -93,22 +92,22 @@ fn explode(pn: &mut PairOrNum) -> bool {
                     *pn = PairOrNum::Num(0);
                     res
                 }
-                _ => panic!(),
+                _ => unreachable!("exploding pairs will always consist of two regular numbers"),
             },
             PairOrNum::Pair(left, right) => {
-                let (exploded, left_left, left_right) = _explode(&mut *left, depth + 1);
+                let (exploded, add_left, add_right) = _explode(&mut *left, depth + 1);
                 if exploded {
-                    if let Some(left_right) = left_right {
-                        _add_left(&mut *right, left_right);
+                    if let Some(add_right) = add_right {
+                        _add_first_num_to_right(&mut *right, add_right);
                     }
-                    return (true, left_left, None);
+                    return (true, add_left, None);
                 }
-                let (exploded, right_left, right_right) = _explode(&mut *right, depth + 1);
+                let (exploded, add_left, add_right) = _explode(&mut *right, depth + 1);
                 if exploded {
-                    if let Some(right_left) = right_left {
-                        _add_right(&mut *left, right_left);
+                    if let Some(add_left) = add_left {
+                        _add_first_num_to_left(&mut *left, add_left);
                     }
-                    return (true, None, right_right);
+                    return (true, None, add_right);
                 }
                 (false, None, None)
             }
