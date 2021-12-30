@@ -10,7 +10,7 @@ pub fn part1(input: &str) -> usize {
         player.advance(roll);
         player.score += player.pos;
         if player.score >= 1000 {
-            return &players[(roll + 1) % 2].score * ((num_rolls + 1) * 3);
+            return players[(roll + 1) % 2].score * ((num_rolls + 1) * 3);
         }
     }
     unreachable!();
@@ -79,7 +79,7 @@ fn play_quantum(cache: &mut HashMap<[Player; 2], [usize; 2]>, players: [Player; 
         for die2 in 1..=3 {
             for die3 in 1..=3 {
                 let sum = die1 + die2 + die3;
-                let mut players = players.clone();
+                let mut players = players;
                 let player = &mut players[0];
                 player.advance(sum);
                 player.score += player.pos;
